@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Nummer aanvragen</title>
+<link rel="stylesheet" href="/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎵</text></svg>">
+</head>
+<body>
+<main>
+  <h1>🎵 Nummer aanvragen</h1>
+  <p><a href="/" style="color:var(--muted)">← terug</a></p>
+  <section class="card">
+    <label for="naam">Je naam (komt op het scherm, mag leeg)</label>
+    <input id="naam" maxlength="30" autocomplete="given-name">
+    <label for="q">Zoek een nummer of artiest</label>
+    <form id="zoekform" class="row"><input id="q" type="search" enterkeyhint="search" placeholder="bijv. Dancing Queen" required minlength="2"><button class="copy" type="submit">Zoek</button></form>
+  </section>
+  <p class="status" id="melding"></p>
+  <div id="lijst"></div>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+try { $('naam').value = localStorage.getItem('feestNaam') || ''; } catch {}
+$('naam').onchange = () => { try { localStorage.setItem('feestNaam', $('naam').value); } catch {} };
+const melding = (t, ok) => { $('melding').textContent = t; $('melding').className = 'status' + (ok ? ' ok' : ''); };
+
+$('zoekform').onsubmit = async e => {
+  e.preventDefault();
+  const q = $('q').value.trim(); if (q.length < 2) return;
+  melding('Zoeken…'); $('lijst').replaceChildren(); $('q').blur();
+  try {
+    const r = await fetch('/api/zoek?q=' + encodeURIComponent(q), { cache: 'no-store' });
+    const j = await r.json();
+    if (!r.ok) return melding(j.fout || 'Zoeken lukte niet.');
+    if (!j.resultaten.length) return melding('Niets gevonden – probeer een andere zoekterm.');
+    melding('');
+    for (const t of j.resultaten) $('lijst').append(kaart(t));
+  } catch { melding('Geen verbinding – ben je nog op de feest-wifi?'); }
+};
+
+function kaart(t) {
+  const el = document.createElement('div'); el.className = 'track';
+  const img = document.createElement('img'); img.alt = ''; img.loading = 'lazy'; if (t.afbeelding) img.src = t.afbeelding; img.referrerPolicy = 'no-referrer';
+  const tekst = document.createElement('div'); tekst.className = 'tt';
+  const a = document.createElement('b'); a.textContent = t.titel;
+  const b = document.createElement('small'); b.textContent = [t.artiest, t.album].filter(Boolean).join(' · ');
+  tekst.append(a, b);
+  const knop = document.createElement('button'); knop.className = 'copy'; knop.textContent = '+ Aanvragen';
+  knop.onclick = () => vraagAan(t, knop);
+  el.append(img, tekst, knop);
+  return el;
+}
+async function vraagAan(t, knop) {
+  knop.disabled = true; knop.textContent = '…';
+  try {
+    const r = await fetch('/api/verzoek', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ uri: t.uri, naam: $('naam').value }) });
+    const j = await r.json();
+    if (r.ok) { knop.textContent = '✓ In de wachtrij'; melding(`🎉 "${t.titel}" staat in de wachtrij!`, true); }
+    else { knop.textContent = '+ Aanvragen'; knop.disabled = false; melding(j.fout || 'Lukte niet.'); }
+  } catch { knop.textContent = '+ Aanvragen'; knop.disabled = false; melding('Geen verbinding – probeer het nog eens.'); }
+}
+</script>
+</body>
+</html>

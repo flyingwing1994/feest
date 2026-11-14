@@ -16,6 +16,8 @@ h1{font-size:4.2vw;margin:0 0 2vh}
 .fotos{margin-top:3vh;height:38vh;border-radius:2vw;background:rgba(255,255,255,.04);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:1.6vw}
 .qr{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
 .qr img{width:26vw;height:26vw;background:#fff;border-radius:2vw;padding:1.2vw}
+.req{margin-top:3vh}.req div{font-size:1.5vw;padding:.6vh 0;border-bottom:1px solid rgba(255,255,255,.08)}.req small{color:var(--muted)}
+.req:not(.hidden)+.fotos{height:16vh}
 .qr .cta{font-size:2.2vw;font-weight:700;margin-top:3vh}.qr .sub{font-size:1.4vw;color:var(--muted);margin-top:1vh}
 </style>
 </head>
@@ -25,6 +27,7 @@ h1{font-size:4.2vw;margin:0 0 2vh}
     <h1 id="titel">🎉 Feest</h1>
     <div class="label">Nu speelt</div>
     <div class="np"><img id="cover" alt=""><div><div class="t" id="nt">–</div><div class="a" id="na"></div></div></div>
+    <div class="req hidden" id="req"><div class="label">Aangevraagd</div><div id="reqlijst"></div></div>
     <div class="fotos" id="fotos">📸 Hier komen straks de foto's van iedereen</div>
   </section>
   <section class="qr">
@@ -45,6 +48,9 @@ function toon(s) {
     $('na').textContent = [np.artiest, np.album].filter(Boolean).join(' · ');
     if (np.afbeelding) $('cover').src = np.afbeelding;
   } else { $('nt').textContent = 'Even stil… 🤫'; $('na').textContent = ''; $('cover').removeAttribute('src'); }
+  const v = s.verzoeken || [];
+  $('req').classList.toggle('hidden', !v.length);
+  $('reqlijst').replaceChildren(...v.map(x => { const d = document.createElement('div'); d.textContent = `${x.artiest} – ${x.titel} `; if (x.naam) { const n = document.createElement('small'); n.textContent = '· ' + x.naam; d.append(n); } return d; }));
 }
 function verbind() {
   const es = new EventSource('/api/stream');

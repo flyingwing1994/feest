@@ -13,8 +13,19 @@
   <p><small>Alleen bereikbaar vanaf het thuisnetwerk / Tailscale.</small></p>
 
   <section class="card">
-    <h2>🎵 Party-link (Music Assistant)</h2>
-    <p><small>Open op de tv de MA Party-pagina en scan de QR – de link komt dan achter de knop "Nummer aanvragen". Gasten zitten op de <b>gast-wifi</b> (afgeschermd van het thuisnetwerk), dus de link moet via <b>MA Remote Access</b> lopen, niet via een thuisadres.</small></p>
+    <h2>🎵 Verzoeknummers (Music Assistant)</h2>
+    <p id="ma"><small>…</small></p>
+    <label class="switch"><input type="checkbox" id="verzoekenOpen"> Verzoeken open voor gasten</label>
+    <label for="perGastPerUur">Max. nummers per gast per uur</label><input id="perGastPerUur" type="number" min="1" max="20">
+    <label for="mediaPlayer">Speler (HA-entiteit, ook voor "nu speelt")</label><input id="mediaPlayer">
+    <p><small>Gasten zoeken op de feestpagina en zetten nummers achteraan de wachtrij. Alleen vanaf de (gast-)wifi thuis, nooit via 4G.</small></p>
+    <h3>Laatste verzoeken</h3>
+    <div id="lijst"><small>–</small></div>
+  </section>
+
+  <section class="card">
+    <h2>🔗 Party-link (optioneel, terugval)</h2>
+    <p><small>Alleen nodig als verzoeken hierboven uit staan. Open op de tv de MA Party-pagina en scan de QR – de link komt dan achter de knop "Nummer aanvragen". Gasten zitten op de <b>gast-wifi</b> (afgeschermd van het thuisnetwerk), dus de link moet via <b>MA Remote Access</b> lopen, niet via een thuisadres.</small></p>
     <button class="big music" id="scan"><span class="ico">📷</span>QR scannen</button>
     <video id="video" class="hidden" playsinline muted style="width:100%;border-radius:14px"></video>
     <canvas id="canvas" class="hidden"></canvas>
@@ -25,9 +36,11 @@
     <h2>🎉 Feest</h2>
     <label for="titel">Titel</label><input id="titel">
     <label for="fotospelUrl">Fotospel-link (feestmodus)</label><input id="fotospelUrl" placeholder="https://fotospel.palmkool.nl/…">
+    <p id="wifivast" class="hidden"><small>📶 Gast-wifi is vast ingesteld op de server: <b id="vastssid"></b></small></p>
+    <div id="wifivelden">
     <label for="gastSsid">Gast-wifi naam</label><input id="gastSsid">
     <label for="gastWachtwoord">Gast-wifi wachtwoord</label><input id="gastWachtwoord" type="password" autocomplete="off">
-    <label for="mediaPlayer">Muziekspeler voor "nu speelt" (HA-entiteit)</label><input id="mediaPlayer">
+    </div>
     <button class="big photo" id="opslaan"><span class="ico">💾</span>Opslaan</button>
     <p class="status" id="melding"></p>
   </section>
@@ -47,19 +60,27 @@ const velden = ['titel','partyUrl','fotospelUrl','gastSsid','gastWachtwoord','me
 async function laad() {
   const d = await (await fetch('/api/beheer/config')).json();
   for (const k of velden) $(k).value = d.config[k] || '';
+  $('verzoekenOpen').checked = d.config.verzoekenOpen; $('perGastPerUur').value = d.config.perGastPerUur;
+  $('ma').innerHTML = d.maKlaar ? '<small class="ok">✓ Gekoppeld met Music Assistant</small>' : '<small>⚠️ Nog niet gekoppeld: HA-token en/of MA_CONFIG_ENTRY_ID ontbreekt op de server.</small>';
+  $('verzoekenOpen').disabled = !d.maKlaar;
+  if (d.wifiVast) { $('wifivast').classList.remove('hidden'); $('vastssid').textContent = d.wifiVast.ssid; $('wifivelden').classList.add('hidden'); }
+  $('lijst').replaceChildren(...(d.verzoeken.length ? d.verzoeken.map(v => { const p = document.createElement('div'); p.innerHTML = '<small></small>'; p.firstChild.textContent = `${new Date(v.t).toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'})} · ${v.artiest} – ${v.titel}${v.naam ? ' (' + v.naam + ')' : ''}`; return p; }) : [Object.assign(document.createElement('small'), { textContent: 'Nog geen verzoeken.' })]));
   $('info').innerHTML = `<small>Publieke link: <b>${d.publicUrl}</b><br>Thuis-IP: ${d.home.v4 || '?'}${d.home.v6 ? ' / ' + d.home.v6 : ''}<br>HA (nu speelt): ${d.haGekoppeld ? 'gekoppeld ✓' : 'niet gekoppeld'}</small>`;
   $('qr').src = qrSvg(d.publicUrl);
 }
 $('opslaan').onclick = async () => {
   const body = Object.fromEntries(velden.map(k => [k, $(k).value]));
+  body.verzoekenOpen = $('verzoekenOpen').checked; body.perGastPerUur = $('perGastPerUur').value;
   const r = await fetch('/api/beheer/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   const j = await r.json();
   let msg = r.ok ? 'Opgeslagen ✓' : ('Fout: ' + j.fout);
+  if (r.ok) laad();
   // gasten zitten op de (afgeschermde) gast-wifi: de Party-link moet via internet werken (MA Remote Access), niet via een LAN-adres
   if (r.ok && /^https?:\/\/(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.|localhost|[^/]*\.local\b|music\.palmkool\.nl)/i.test(body.partyUrl || ''))
     msg += ' ⚠️ Let op: deze Party-link is een thuisnetwerk-adres – gasten op de gast-wifi kunnen daar niet bij. Gebruik de link van MA Remote Access.';
   $('melding').textContent = msg;
 };
+$('verzoekenOpen').onchange = () => $('opslaan').click();
 // QR scannen: BarcodeDetector (Android/Chrome) of jsQR als terugval
 let stream = null;
 $('scan').onclick = async () => {

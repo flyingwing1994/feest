@@ -48,9 +48,10 @@ async function check() {
       return;
     }
     $('wifi').classList.add('hidden'); $('keuze').classList.remove('hidden'); $('verbonden').classList.remove('hidden');
-    if (s.partyUrl) { $('muziek').href = s.partyUrl; $('muziek').classList.remove('hidden'); }
+    const muziek = s.verzoeken ? '/verzoek' : s.partyUrl;
+    if (muziek) { $('muziek').href = muziek; $('muziek').classList.remove('hidden'); }
     if (s.fotospelUrl) { $('fotos').href = s.fotospelUrl; $('fotos').classList.remove('hidden'); }
-    $('leeg').classList.toggle('hidden', Boolean(s.partyUrl || s.fotospelUrl));
+    $('leeg').classList.toggle('hidden', Boolean(muziek || s.fotospelUrl));
   } catch { $('laden').textContent = 'Kon de status niet ophalen – probeer het zo opnieuw.'; }
 }
 $('opnieuw').onclick = check;

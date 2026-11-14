@@ -1,6 +1,7 @@
 # Feest-app op lxc-docker (CT 102) – /opt/feest
 # data/   = config.json (titel, gast-wifi, links) – NIET in git
-# secrets/ha_token = HA-token (alleen lezen) voor "nu speelt" – NIET in git, optioneel
+# secrets/ha_token = HA-token gebruiker "Feest" (nu speelt + verzoeken) – NIET in git
+# secrets/gastwifi = vaste gast-wifi (regel 1 SSID, regel 2 wachtwoord) – NIET in git, optioneel
 services:
   feest:
     build: .
@@ -8,6 +9,7 @@ services:
     environment:
       - PUBLIC_URL=https://feest.palmkool.nl
       - HA_URL=http://192.168.2.51
+      - MA_CONFIG_ENTRY_ID=01M6TQ667RFXT447XT6HSSVJ48   # Music Assistant-integratie in HA (verzoeknummers)
       - DATA_DIR=/data
     volumes:
       - ./data:/data
