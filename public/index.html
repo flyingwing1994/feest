@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Feest</title>
+<link rel="stylesheet" href="/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎉</text></svg>">
+</head>
+<body>
+<main>
+  <h1 id="titel">🎉 Feest</h1>
+  <p class="status" id="laden">Even kijken waar je bent…</p>
+
+  <!-- Stap 1: niet op de thuis-wifi -->
+  <section id="wifi" class="card hidden">
+    <h2>📶 Verbind eerst met de wifi</h2>
+    <p>Muziek aanvragen werkt alleen via de wifi van het feest.</p>
+    <label>Netwerk</label>
+    <div class="row"><span class="mono" id="ssid">–</span></div>
+    <label>Wachtwoord</label>
+    <div class="row"><span class="mono" id="ww">–</span><button class="copy" id="kopieer">Kopieer</button></div>
+    <p><small>Ga naar je wifi-instellingen, kies dit netwerk en plak het wachtwoord. Kom daarna terug naar deze pagina.</small></p>
+    <button class="big ghost" id="opnieuw"><span class="ico">🔄</span>Ik ben verbonden</button>
+  </section>
+
+  <!-- Stap 2: keuze -->
+  <section id="keuze" class="hidden">
+    <p class="status ok" id="verbonden">✅ Je bent verbonden – veel plezier!</p>
+    <a class="big music hidden" id="muziek" href="#"><span class="ico">🎵</span>Nummer aanvragen</a>
+    <a class="big photo hidden" id="fotos" href="#"><span class="ico">📸</span>Foto's delen</a>
+    <p class="status hidden" id="leeg">Nog even geduld – de feestlinks worden zo klaargezet.</p>
+  </section>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+async function check() {
+  $('laden').classList.remove('hidden');
+  try {
+    const s = await (await fetch('/api/status', { cache: 'no-store' })).json();
+    $('titel').textContent = '🎉 ' + s.titel; document.title = s.titel;
+    $('laden').classList.add('hidden');
+    if (!s.thuis) {
+      $('wifi').classList.remove('hidden'); $('keuze').classList.add('hidden');
+      $('ssid').textContent = s.wifi?.ssid || '(vraag de gastheer)';
+      $('ww').textContent = s.wifi?.wachtwoord || '–';
+      // foto's werken ook via 4G
+      if (s.fotospelUrl) { $('keuze').classList.remove('hidden'); $('verbonden').classList.add('hidden'); $('fotos').href = s.fotospelUrl; $('fotos').classList.remove('hidden'); }
+      return;
+    }
+    $('wifi').classList.add('hidden'); $('keuze').classList.remove('hidden'); $('verbonden').classList.remove('hidden');
+    if (s.partyUrl) { $('muziek').href = s.partyUrl; $('muziek').classList.remove('hidden'); }
+    if (s.fotospelUrl) { $('fotos').href = s.fotospelUrl; $('fotos').classList.remove('hidden'); }
+    $('leeg').classList.toggle('hidden', Boolean(s.partyUrl || s.fotospelUrl));
+  } catch { $('laden').textContent = 'Kon de status niet ophalen – probeer het zo opnieuw.'; }
+}
+$('opnieuw').onclick = check;
+$('kopieer').onclick = async () => {
+  try { await navigator.clipboard.writeText($('ww').textContent); $('kopieer').textContent = 'Gekopieerd ✓'; }
+  catch { $('kopieer').textContent = 'Selecteer en kopieer'; }
+  setTimeout(() => $('kopieer').textContent = 'Kopieer', 2500);
+};
+document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); }); // terug na wifi-instellingen
+check();
+</script>
+</body>
+</html>

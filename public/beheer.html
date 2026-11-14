@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Feest – beheer</title>
+<link rel="stylesheet" href="/style.css">
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+</head>
+<body>
+<main>
+  <h1>⚙️ Feest-beheer</h1>
+  <p><small>Alleen bereikbaar vanaf het thuisnetwerk / Tailscale.</small></p>
+
+  <section class="card">
+    <h2>🎵 Party-link (Music Assistant)</h2>
+    <p><small>Open op de tv de MA Party-pagina en scan de QR – de link komt dan achter de knop "Nummer aanvragen". Gasten zitten op de <b>gast-wifi</b> (afgeschermd van het thuisnetwerk), dus de link moet via <b>MA Remote Access</b> lopen, niet via een thuisadres.</small></p>
+    <button class="big music" id="scan"><span class="ico">📷</span>QR scannen</button>
+    <video id="video" class="hidden" playsinline muted style="width:100%;border-radius:14px"></video>
+    <canvas id="canvas" class="hidden"></canvas>
+    <label for="partyUrl">Party-link</label><input id="partyUrl" placeholder="https://…">
+  </section>
+
+  <section class="card">
+    <h2>🎉 Feest</h2>
+    <label for="titel">Titel</label><input id="titel">
+    <label for="fotospelUrl">Fotospel-link (feestmodus)</label><input id="fotospelUrl" placeholder="https://fotospel.palmkool.nl/…">
+    <label for="gastSsid">Gast-wifi naam</label><input id="gastSsid">
+    <label for="gastWachtwoord">Gast-wifi wachtwoord</label><input id="gastWachtwoord" type="password" autocomplete="off">
+    <label for="mediaPlayer">Muziekspeler voor "nu speelt" (HA-entiteit)</label><input id="mediaPlayer">
+    <button class="big photo" id="opslaan"><span class="ico">💾</span>Opslaan</button>
+    <p class="status" id="melding"></p>
+  </section>
+
+  <section class="card">
+    <h2>ℹ️ Status</h2>
+    <p id="info"><small>…</small></p>
+    <p><a class="big ghost" href="/scherm" target="_blank"><span class="ico">📺</span>Party-scherm openen</a></p>
+    <p><img id="qr" alt="QR landingspagina" style="width:180px;background:#fff;border-radius:12px;padding:8px"></p>
+  </section>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+function qrSvg(text){ const q = qrcode(0, 'M'); q.addData(text); q.make(); return 'data:image/svg+xml;utf8,' + encodeURIComponent(q.createSvgTag({ cellSize: 8, margin: 1, scalable: true })); }
+
+const velden = ['titel','partyUrl','fotospelUrl','gastSsid','gastWachtwoord','mediaPlayer'];
+async function laad() {
+  const d = await (await fetch('/api/beheer/config')).json();
+  for (const k of velden) $(k).value = d.config[k] || '';
+  $('info').innerHTML = `<small>Publieke link: <b>${d.publicUrl}</b><br>Thuis-IP: ${d.home.v4 || '?'}${d.home.v6 ? ' / ' + d.home.v6 : ''}<br>HA (nu speelt): ${d.haGekoppeld ? 'gekoppeld ✓' : 'niet gekoppeld'}</small>`;
+  $('qr').src = qrSvg(d.publicUrl);
+}
+$('opslaan').onclick = async () => {
+  const body = Object.fromEntries(velden.map(k => [k, $(k).value]));
+  const r = await fetch('/api/beheer/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const j = await r.json();
+  let msg = r.ok ? 'Opgeslagen ✓' : ('Fout: ' + j.fout);
+  // gasten zitten op de (afgeschermde) gast-wifi: de Party-link moet via internet werken (MA Remote Access), niet via een LAN-adres
+  if (r.ok && /^https?:\/\/(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.|localhost|[^/]*\.local\b|music\.palmkool\.nl)/i.test(body.partyUrl || ''))
+    msg += ' ⚠️ Let op: deze Party-link is een thuisnetwerk-adres – gasten op de gast-wifi kunnen daar niet bij. Gebruik de link van MA Remote Access.';
+  $('melding').textContent = msg;
+};
+// QR scannen: BarcodeDetector (Android/Chrome) of jsQR als terugval
+let stream = null;
+$('scan').onclick = async () => {
+  if (stream) return stop();
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+  } catch (e) { $('melding').textContent = 'Camera niet beschikbaar: ' + e.message; return; }
+  const v = $('video'); v.srcObject = stream; v.classList.remove('hidden'); await v.play();
+  $('scan').lastChild.textContent = 'Stop scannen';
+  const detector = 'BarcodeDetector' in window ? new BarcodeDetector({ formats: ['qr_code'] }) : null;
+  const c = $('canvas'), ctx = c.getContext('2d', { willReadFrequently: true });
+  const tick = async () => {
+    if (!stream) return;
+    let tekst = null;
+    try {
+      if (detector) { const r = await detector.detect(v); if (r[0]) tekst = r[0].rawValue; }
+      else if (window.jsQR && v.videoWidth) {
+        c.width = v.videoWidth; c.height = v.videoHeight; ctx.drawImage(v, 0, 0);
+        const r = jsQR(ctx.getImageData(0, 0, c.width, c.height).data, c.width, c.height); if (r) tekst = r.data;
+      }
+    } catch {}
+    if (tekst && /^https?:\/\//.test(tekst)) { $('partyUrl').value = tekst; $('melding').textContent = 'QR gelezen – vergeet niet op te slaan.'; return stop(); }
+    requestAnimationFrame(tick);
+  };
+  tick();
+};
+function stop() { stream?.getTracks().forEach(t => t.stop()); stream = null; $('video').classList.add('hidden'); $('scan').lastChild.textContent = 'QR scannen'; }
+laad();
+</script>
+</body>
+</html>

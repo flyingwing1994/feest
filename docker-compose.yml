@@ -1,0 +1,17 @@
+# Feest-app op lxc-docker (CT 102) – /opt/feest
+# data/   = config.json (titel, gast-wifi, links) – NIET in git
+# secrets/ha_token = HA-token (alleen lezen) voor "nu speelt" – NIET in git, optioneel
+services:
+  feest:
+    build: .
+    container_name: feest
+    environment:
+      - PUBLIC_URL=https://feest.palmkool.nl
+      - HA_URL=http://192.168.2.51
+      - DATA_DIR=/data
+    volumes:
+      - ./data:/data
+      - ./secrets:/secrets:ro
+    ports:
+      - "8091:8091"
+    restart: unless-stopped
