@@ -16,6 +16,10 @@ npm run dev          # http://localhost:8091  (config in ./data/config.json)
 ```
 Docker (lxc-docker, `/opt/feest`): `docker compose up -d --build`.
 
+## Werkwijze
+
+Wijzigingen lopen via issue → branch → pull request, volgens de [werkwijze](https://github.com/flyingwing1994/.github/blob/main/WORKFLOW.md). Elke PR krijgt automatisch checks (geheimen, Semgrep, dependencies, Docker-build) en een Claude-review; zonder risicovlag wordt hij daarna automatisch gemerged. Dependabot houdt de Docker-image en de GitHub Actions wekelijks bij.
+
 ## Configuratie
 - `data/config.json` – wordt via `/beheer` geschreven (titel, gastSsid, gastWachtwoord, partyUrl, fotospelUrl, mediaPlayer). Niet in git.
 - `secrets/ha_token` – HA-token van gebruiker **Feest** (geen beheerder) voor "nu speelt" en verzoeknummers. Niet in git.
